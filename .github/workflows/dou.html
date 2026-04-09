@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>豆包 P 图大师 Pro v3.0</title>
+    <style>
+        :root {
+            --primary: #10b981; /* 豆包绿色 */
+            --bg: #0b0f1a;
+            --card: #161e31;
+            --text: #e2e8f0;
+            --accent: #22d3ee;
+            --success: #34d399;
+            --warning: #f59e0b;
+        }
+        body {
+            font-family: 'PingFang SC', system-ui, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 10px;
+            display: flex;
+            justify-content: center;
+        }
+        .container { width: 100%; max-width: 1200px; display: grid; grid-template-columns: 280px 1fr; gap: 15px; }
+        @media (max-width: 768px) { .container { grid-template-columns: 1fr; } }
+
+        header { grid-column: 1 / -1; text-align: center; margin-bottom: 20px; padding: 20px 0; border-bottom: 1px solid #2d3748; }
+        h1 { color: var(--accent); font-size: 1.5rem; margin: 0; }
+        
+        /* 助理选择器 */
+        .sidebar { background: var(--card); padding: 15px; border-radius: 12px; border: 1px solid #1e293b; overflow-y: auto; max-height: calc(100vh - 80px); }
+        h3 { font-size: 1rem; color: var(--primary); margin-top: 0; display: flex; justify-content: space-between; align-items: center; }
+        
+        .assistant-grid { display: flex; flex-direction: column; gap: 8px; }
+        @media (max-width: 768px) { .assistant-grid { flex-direction: row; flex-wrap: wrap; justify-content: center; } }
+        
+        .assistant-card { background: #1e293b; padding: 10px; border-radius: 6px; cursor: pointer; font-size: 12px; border: 1px solid transparent; transition: 0.2s; position: relative; }
+        .assistant-card:hover { background: #2d3748; border-color: var(--primary); }
+        .assistant-card.active { background: var(--primary); color: white; border-color: var(--accent); }
+        .card-num { font-size: 10px; color: #94a3b8; margin-right: 5px; }
+        .card-tags { font-size: 10px; color: #a7f3d0; margin-top: 4px; display: block; }
+        @media (max-width: 768px) { .assistant-card { width: 140px; text-align: center; } .card-num { display: none; } }
+
+        /* 主面板 */
+        .main-content { }
+        .section { background: var(--card); padding: 15px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #1e293b; }
+
+        .tag-group { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; }
+        .tag { background: #1e293b; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; border: 1px solid transparent; transition: 0.2s; }
+        .tag.active { background: var(--primary); color: white; border-color: var(--accent); }
+        .tag-multi { border-color: var(--warning); }
+        
+        input[type="text"] { width: 100%; padding: 10px; border-radius: 6px; background:#020617; border: 1px solid #1e293b; color:white; box-sizing:border-box; margin-bottom: 10px; }
+        textarea { width: 100%; height: 200px; background: #020617; color: var(--success); border: 1px solid var(--primary); border-radius: 8px; padding: 12px; font-family: monospace; font-size: 14px; box-sizing: border-box; }
+        
+        .btn { border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 8px; font-size: 14px; }
+        .btn-primary { background: var(--primary); color: white; }
+        
+        /* 历史记录样式 */
+        .sidebar-right { }
+        .history-list { max-height: 400px; overflow-y: auto; }
+        .history-item { background: #1e293b; padding: 10px; border-radius: 6px; margin-bottom: 8px; font-size: 12px; position: relative; cursor: pointer; border-left: 3px solid var(--primary); }
+        .history-item:hover { background: #2d3748; }
+        .clear-btn { font-size: 12px; color: #94a3b8; cursor: pointer; text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>🎬 豆包 P 图大师 Pro v3.0</h1>
+    </header>
+
+    <div class="sidebar">
+        <h3>1. 选择助理</h3>
+        <div id="assistant-list" class="assistant-grid">
+            </div>
+    </div>
+
+    <div class="main-content">
+        <div class="section">
+            <h3 id="active-assistant-name">简约创意海报助手</h3>
+            <div id="customization-area">
+                </div>
+        </div>
+
+        <div class="section">
+            <h3>生成的 P 图提示词</h3>
+            <textarea id="final-prompt"></textarea>
+            <button class="btn btn-primary" onclick="copyAndSave()">复制并保存历史</button>
+        </div>
+        
+        <div class="section">
+            <h3>历史记录 <span class="clear-btn" onclick="clearHistory()">清空</span></h3>
+            <div id="history-list" class="history-list">
+                </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 基于图片内容的 12 个助手详细配置
+    const assistants = [
+        { id: "1", name: "温馨亲子画面助手", tags: ["写实", "插画", "亲子"], template: "创作一张妈妈陪娃读绘本 / 父子草地玩耍 / 萌娃撸猫温馨亲子 / 萌娃画面，风格 (高清写实 / 治愈插画 / 卡通 Q 版) ，配色暖黄奶白 / 莫兰迪低饱和 / 马卡龙柔和，光影柔和自然光 / 暖调室内光，人物神态温馨松弛，画面细节治愈，画幅【3:4】，无杂乱元素，充满生活幸福感。", default: { style: "高清写实", color: "暖黄奶白", light: "柔和自然光" } },
+        { id: "2", name: "宠物萌系写真助手", tags: ["猫狗", "写实", "卡通"], template: "创作一张宠物 (橘猫 / 柯基 / 布偶猫) 萌系写真，风格 (高清写实 / 卡通 Q 版 / 油画质感) ，场景飘窗晒太阳 / 草地玩耍 / 奶油风沙发，光影【柔和自然光 / 暖调柔光】，突出宠物萌点 (歪头杀 / 吐舌头 / 揣手手) ，画质 8K 高清，画幅【3:4】，毛发细节清晰，神态灵动，色彩温暖治愈。", default: { subject: "橘猫", style: "高清写实", light: "柔和自然光" } },
+        { id: "3", name: "国风意境插画助手", tags: ["古风", "写意", "工笔"], template: "创作一张 (新中式写意 / 古风工笔 / 国潮扁平) 国风插画，主体是 (江南水乡 / 古风仕女 / 水墨山水 / 瑞兽麒麟) ，配色青黛白 / 朱砂红 + 松烟墨 / 暖橙鎏金，画面留白有层次，线条流畅细腻 / 简约粗犷，画质 4K 高清，画幅【1:1/4:3】，无杂乱元素，贴合东方美学。", default: { style: "新中式写意", subject: "江南水乡", color: "青黛白", line: "线条流畅细腻", aspect: "1:1" } },
+        { id: "4", name: "产品高清展示助手", tags: ["电商", "种草", "高清"], template: "创作一张 (咖啡杯 / 香薰 / 卫衣) 高清展示图，场景原木桌面 / 白色简约背景 / 奶油风置物架，光影柔和顶光 / 自然侧光，突出产品材质纹理 (陶瓷哑光 / 布艺纹理 / 玻璃通透) ，画质 8K 高清，色彩还原真实，无反光过曝，背景简约不抢主体，适配电商主图 / 小红书种草。", default: { subject: "咖啡杯", style: "原木桌面", light: "柔和顶光", texture: "陶瓷哑光" } },
+        { id: "5", name: "真人像写真助手", tags: ["日常", "氛围感", "自然"], template: "创作一张 (日系清新 / 韩系氛围感 / 港风复古) 真人像写真，主体是 (20+ 女生 / 少年感男生，长发微卷 / 短发干净) ，场景 (窗边逆光 / 城市街头 / 咖啡馆) ，光影 (柔和柔光 / 暖调侧光 / 低饱和冷光) ，画质 8K 高清，画幅【3:4/16:9】，细节拉满，皮肤保留原生质感，无过度磨皮，色彩通透自然，人物神态松弛。", default: { style: "日系清新", subject: "20+ 女生", scene: "窗边逆光", light: "柔和柔光", aspect: "3:4" } },
+        { id: "6", name: "萌系卡通形象助手", tags: ["Q版", "扁平", "治愈"], template: "创作一个可爱猫咪 / 软萌女孩 / 卡通小狗萌系卡通形象，风格 (Q 版手绘 / 扁平简约 / 奶油治愈风) ，配色 (马卡龙色系 / 莫兰迪低饱和) ，形象动作歪头眨眼 / 托腮微笑 / 蹦跳，画质 4K 高清，线条圆润，无尖锐棱角，表情灵动可爱，可做头像 / 贴纸。", default: { style: "Q 版手绘", color: "马卡龙色系" } },
+        { id: "7", name: "风景氛围感壁纸助手", tags: ["手机", "电脑", "风景"], template: "创作一张 (海边日落 / 山间雾景 / 城市夜景 / 森林晨光) 氛围感风景壁纸，适配手机 / 电脑，风格 (电影感 / 油画质感 / 清新写实) ，配色橙蓝撞色 / 低饱和青灰 / 暖调鎏金，光影落日金辉 / 晨雾柔光 / 霓虹冷光，画质 8K 高清，画幅【9:16 (手机) / 16:9 (电脑) 】，画面无杂物，氛围感拉满，视觉开阔。", default: { subject: "海边日落", style: "电影感", color: "橙蓝撞色", light: "落日金辉", aspect: "9:16 (手机)" } },
+        { id: "8", name: "赛博朋克场景助手", tags: ["赛博朋克", "未来", "科技感"], template: "创作一张 (赛博朋克少女 / 未来城市街景) 赛博朋克风格图，场景霓虹街头 / 高空楼宇 / 机械巷弄，配色 (蓝紫霓虹 + 玫红点缀 / 青蓝冷光 + 橙红霓虹) ，光影强烈霓虹光效 / 明暗高对比，加入细节元素 (全息投影 / 机械装置 / 霓虹招招招牌) ，画质 8K 高清，未来科技感拉满。", default: { subject: "赛博朋克少女", scene: "霓虹街头", color: "蓝紫霓虹 + 玫红点缀", elements: ["全息投影"] } },
+        { id: "9", name: "简约海报助手", tags: ["日常", "活动", "打卡"], template: "创作一张 (周末咖啡 / 读书打卡 / 店铺开业) 简约创意海报，风格 (ins 扁平 / 极简线条 / 复古拼贴) ，配色 (黑白灰 + 明黄点缀 / 莫兰迪三色) ，画面包含【核心元素 (咖啡杯 / 书本 / 樱花 /气球) 】，文字排版简洁，画质 4K 高清，画幅【3:4/16:9】，无杂乱元素，视觉焦点突出。", default: { subject: "周末咖啡", style: "ins 扁平", color: "黑白灰 + 明黄点缀", elements: ["咖啡杯"], aspect: "3:4" } },
+        { id: "10", name: "萌系卡通食物助手", tags: ["食物", "治愈", "扁平"], template: "创作一张 (提拉米苏 / 火锅 / 奶茶) 手绘插画，风格 (写实水彩 / 卡通 Q 版 / 奶油治愈风) ，场景 (木质餐盘 / 碎花桌布 / 简约白盘) ，配色贴合食物本身，突出食物质感 (绵密奶油 / 滚烫汤汁 / 软糯米饭) ，画质 4K 高清，画幅【1:1/3:4】，画面温馨有食欲，无杂乱背景。", default: { subject: "提拉米苏", style: "写实水彩", scene: "木质餐盘", texture: "绵密奶油", aspect: "1:1" } },
+        { id: "11", name: "极简线条画助手", tags: ["人物", "风景", "设计感"], template: "创作一张主体 (女生侧脸 / 猫咪轮廓 / 城市天际线 / 花朵) 极简线条画，风格单线条 / 双线条，配色 (黑白色 / 莫兰迪单色 / 低饱和撞色) ，线条流畅简约 / 利落干脆，无多余线条，画质 4K 高清，画幅【1:1】，可做头像 / 壁纸 / 手账素材，视觉干净简洁。", default: { subject: "女生侧脸", style: "单线条", color: "黑白色", aspect: "1:1" } },
+        { id: "12", name: "复古胶片风助手", tags: ["胶片感", "复古", "日常"], template: "创作一张 (复古少女 / 老巷风景 / 胶片感) 90 年代复古胶片风图，风格港风胶片 / 美式复古，配色 (暖黄焦糖 / 复古红棕) ，加入胶片细节 (轻微颗粒感 / 边角暗角 / 轻微漏光) ，光影暖调自然光 / 复古钨丝灯，画质 8K 高清，画幅【4:3/3:4】，氛围感拉满，还原胶片真实质感。", default: { subject: "复古少女", style: "港风胶片", color: "暖黄焦糖", light: "暖调自然光", aspect: "4:3" } }
+    ];
+
+    const state = { assistant: null, options: {} };
+    let history = JSON.parse(localStorage.getItem('seedance_p_history') || '[]');
+
+    function renderAssistantList() {
+        const list = document.getElementById('assistant-list');
+        list.innerHTML = assistants.map(a => `
+            <div id="card-${a.id}" class="assistant-card" onclick="selectAssistant('${a.id}')">
+                <span class="card-num">${a.id}.</span> ${a.name}
+                <span class="card-tags">${a.tags.join(' / ')}</span>
+            </div>
+        `).join('');
+    }
+
+    function selectAssistant(id) {
+        document.querySelectorAll('.assistant-card').forEach(c => c.classList.remove('active'));
+        document.getElementById(`card-${id}`).classList.add('active');
+        state.assistant = assistants.find(a => a.id === id);
+        state.options = { ...state.assistant.default };
+        document.getElementById('active-assistant-name').innerText = state.assistant.name;
+        buildCustomizationInterface();
+        updatePrompt();
+    }
+
+    // 解析模板并动态构建界面
+    function buildCustomizationInterface() {
+        const area = document.getElementById('customization-area');
+        area.innerHTML = ''; // 清空
+        const template = state.assistant.template;
+        
+        // 1. 主体 (Subject)
+        const subMatch = template.match(/创作一[张个](.*?)?，|创作一张主体 (.*?)[极简约(风格]/) || template.match(/创作一个 (.*?)萌系卡通形象/);
+        if(subMatch) {
+            const list = (subMatch[1] || subMatch[2] || "").replace(/ /g, "").split(' / ');
+            if (list.length > 1) { createSingleSelectGroup('subject', '主体', list); }
+            else if (template.includes('创作一张妈妈陪伴')) { createSingleSelectGroup('subject', '亲子画面助手', ['妈妈陪娃读绘本', '父子草地玩耍', '萌娃撸猫温馨亲子']); }
+        }
+
+        // 2. 风格 (Style)
+        const styleMatch = template.match(/风格 \((.*?)\) ，/);
+        if(styleMatch) { createSingleSelectGroup('style', '风格风格 \((...)\)', styleMatch[1].split(' / ')); }
+        else if (id === "12") { createSingleSelectGroup('style', '风格風格港风胶片', ['港风胶片', '美式复古']); }
+
+        // 3. 场景场景/场景风格/场景类型
+        const sceneMatch = template.match(/场景 \((.*?)\) ，|场景飘窗晒太阳 \/ 草地玩耍 \/ 奶油风沙发，|场景霓虹街头 \/ 高空楼宇 \/ 机械巷弄，|场景 \(木质餐盘 \/ 碎花桌布 \/ 简约白盘\) ，/);
+        if(sceneMatch) { createSingleSelectGroup('scene', '场景场景/场景设置场景设置', (sceneMatch[1] || "飘窗晒太阳 / 草地玩耍 / 奶油风沙发").replace(/ /g, "").split(' / ')); }
+
+        // 4. 配色配色配色配色
+        const colorMatch = template.match(/配色 \((.*?)\) ，|配色贴合食物本身，/);
+        if(colorMatch && !colorMatch[0].includes('贴合食物本身')) { createSingleSelectGroup('color', '配色配色 \((...)\)', colorMatch[1].split(' / ')); }
+
+        // 5. 光影光影【柔和自然光 / 暖调柔光】，
+        const lightMatch = template.match(/光影【柔和自然光 \/ 暖调柔光】，|光影 \((.*?)\) ，/);
+        if(lightMatch) { createSingleSelectGroup('light', '光影光影【...】', (lightMatch[1] || "柔和自然光 / 暖调柔光").replace(/ /g, "").split(' / ')); }
+
+        // 6. 材质和质感材质纹理
+        const textureMatch = template.match(/材质纹理 \((.*?)\) ，|突出食物质感 \((.*?)\) ，/);
+        if(textureMatch) { createSingleSelectGroup('texture', '质感突出材质材质', (textureMatch[1] || textureMatch[2]).replace(/ /g, "").split(' / ')); }
+
+        // 7. 核心元素多选核心元素核心元素
+        const elementMatch = template.match(/【核心元素 \((.*?)\)】/);
+        if(elementMatch) { createMultiSelectGroup('elements', '核心元素核心元素核心元素', elementMatch[1].split(' / ')); }
+
+        // 8. 设计感线条线条单线条
+        const id = state.assistant.id;
+        if(id === "11") { createSingleSelectGroup('line', '线条流畅流畅', ['线条流畅简约', '利落干脆']); }
+
+        // 9. 画幅画幅画幅画幅画幅画幅画幅画幅画幅
+        const aspectMatch = template.match(/画幅【(.*?)】/);
+        if(aspectMatch) { createSingleSelectGroup('aspect', '画幅【...】画幅【...】画幅【...】画幅【...】', aspectMatch[1].split('/')); }
+
+    }
+
+    // 创建单选组
+    function createSingleSelectGroup(key, label, list) {
+        const div = document.createElement('div');
+        div.innerHTML = `<h3>${label}</h3><div id="${key}-tags" class="tag-group"></div>`;
+        document.getElementById('customization-area').appendChild(div);
+        const tagsArea = div.querySelector('.tag-group');
+        tagsArea.innerHTML = list.map(item => `
+            <span id="tag-${key}-${item}" class="tag ${state.options[key] === item ? 'active' : ''}" onclick="selectSingleOption('${key}', '${item}')">${item}</span>
+        `).join('');
+    }
+
+    // 创建多选组
+    function createMultiSelectGroup(key, label, list) {
+        const div = document.createElement('div');
+        div.innerHTML = `<h3>${label} <span style="font-size:10px;color:var(--warning);">(多选/单选多选)</span></h3><div id="${key}-tags" class="tag-group"></div>`;
+        document.getElementById('customization-area').appendChild(div);
+        const tagsArea = div.querySelector('.tag-group');
+        // 初始化 state.options[key] 为数组
+        if (!state.options[key]) state.options[key] =];
+        
+        tagsArea.innerHTML = list.map(item => `
+            <span id="tag-${key}-${item}" class="tag tag-multi ${state.options[key].includes(item) ? 'active' : ''}" onclick="selectMultiOption('${key}', '${item}')">${item}</span>
+        `).join('');
+    }
+
+    function selectSingleOption(key, item) {
+        document.querySelectorAll(`#${key}-tags .tag`).forEach(t => t.classList.remove('active'));
+        document.getElementById(`tag-${key}-${item}`).classList.add('active');
+        state.options[key] = item;
+        updatePrompt();
+    }
+
+    function selectMultiOption(key, item) {
+        const el = document.getElementById(`tag-${key}-${item}`);
+        el.classList.toggle('active');
+        
+        if (!state.options[key]) state.options[key] =;
+        const index = state.options[key].indexOf(item);
+        
+        if (index > -1) { state.options[key].splice(index, 1); } // 移除
+        else { state.options[key].push(item); } // 添加
+
+        // 确保至少选择一个
+        if (state.options[key].length === 0) { state.options[key] =; el.classList.add('active'); }
+        updatePrompt();
+    }
+
+    // 动态构建提示词
+    function updatePrompt() {
+        const id = state.assistant.id;
+        const o = state.options;
+        let prompt = "";
+
+        if(id === "1") { prompt = `创作一张${o.subject || "妈妈陪娃读绘本"}温馨亲子画面，风格${o.style}，配色${o.color}，光影${o.light}，人物神态温馨松弛，画面细节治愈，画幅【3:4】，无杂乱元素，充满生活幸福感。`; }
+        if(id === "2") { prompt = `创作一张宠物${o.subject}萌系写真，风格${o.style}，场景${o.scene}，光影【${o.light}】，突出宠物萌点歪头杀吐舌头揣手手，画质 8K 高清，画幅【3:4】，毛发细节清晰，神态灵动，色彩温暖治愈。`; }
+        if(id === "3") { prompt = `创作一张${o.style}国风插画，主体是${o.subject}，配色${o.color}朱砂红 + 松烟墨暖橙鎏金，画面留白有层次，${o.line}，画质 4K 高清，画幅【${o.aspect}】，无杂乱元素，贴合东方美学。`; }
+        if(id === "4") { prompt = `创作一张${o.subject}高清展示图，场景${o.style}白色简约背景奶油风置物架，光影${o.light}突出材质材质${o.texture}，画质 8K 高清，色彩还原真实，无反光过曝，背景简约不抢主体，适配电商主图 / 小红书种草。`; }
+        if(id === "5") { prompt = `创作一张${o.style}真人像写真，主体是${o.subject}少年感男生长发微卷短发干净，场景${o.scene}咖啡馆，光影${o.light}低饱和冷光，画质 8K 高清，画幅【${o.aspect}】，细节拉满，皮肤保留原生质感，无过度磨皮，色彩通透自然，人物神态松弛。`; }
+        if(id === "6") { prompt = `创作一个可爱猫咪萌系卡通形象，风格${o.style}，配色${o.color}，形象动作歪头眨眼托腮微笑蹦跳，画质 4K 高清，线条圆润，无尖锐棱角，表情灵动可爱，可做头像贴纸。`; }
+        if(id === "7") { prompt = `创作一张${o.subject}氛围感风景壁纸，适配手机电脑，风格${o.style}，配色${o.color}低饱和青灰暖调鎏金，光影${o.light}霓虹冷光，画质 8K 高清，画幅【${o.aspect}】，画面无杂物，氛围感拉满，视觉开阔。`; }
+        if(id === "8") { prompt = `创作一张${o.subject}赛博朋克风格图，场景${o.scene}機械巷弄，配色${o.color}青蓝冷光 + 橙红霓虹，光影强烈霓虹光效明暗高对比，加入细节元素${o.elements ? o.elements.join('') : ""}機械招招招牌，画质 8K 高清，未来科技感拉满。`; }
+        if(id === "9") { prompt = `创作一张${o.subject}简约创意海报，风格${o.style}，配色${o.color}莫兰迪三色，画面包含核心元素核心元素核心元素核心元素${o.elements ? o.elements.join('') : ""}】文字排版简洁，画质 4K 高清，画幅【${o.aspect}】，无杂乱元素，视觉焦点突出。`; }
+        if(id === "10") { prompt = `创作一张${o.subject}手绘插画，风格${o.style}卡通卡通卡通卡通奶油治愈风，场景${o.scene}简约白盘配色贴合食物本身配色贴合食物本身配色贴合食物本身配色贴合食物本身突突质感${o.texture}画质 4K 高清，画幅【${o.aspect}】，画面温馨有食欲，无杂乱背景。`; }
+        if(id === "11") { prompt = `创作一张主体${o.subject}极简线条画，风格${o.style}配色${o.color}，${o.line}，无多余线条，画质 4K 高清，画幅【1:1】，可做头像贴纸。`; }
+        if(id === "12") { prompt = `创作一张${o.subject}90 年代复古胶片风图，风格${o.style}配色${o.color}，加入胶片细节轻微颗粒感轻微颗粒感轻微颗粒感边角暗角轻微漏光，光影${o.light}复古钨丝灯，画质 8K 高清，画幅【${o.aspect}】，氛围感拉满，还原胶片真实质感。`; }
+
+        // 默认添加细腻质感描述
+        document.getElementById('final-prompt').value = `${prompt} 色彩通透自然，艺术构图。`;
+    }
+
+    // 借用 v2.0 的历史记录逻辑
+    function copyAndSave() {
+        const text = document.getElementById('final-prompt').value;
+        if(!text) return;
+        navigator.clipboard.writeText(text);
+        
+        history.unshift({ text, time: new Date().toLocaleString(), name: state.assistant.name });
+        if(history.length > 30) history.pop();
+        localStorage.setItem('seedance_p_history', JSON.stringify(history));
+        renderHistory();
+        alert(`已复制并保存历史：\n${state.assistant.name} -自定义提示词。`);
+    }
+
+    function renderHistory() {
+        const list = document.getElementById('history-list');
+        list.innerHTML = history.map((item, i) => `
+            <div class="history-item" onclick="loadHistory(${i})">
+                <div style="color: #94a3b8; margin-bottom: 4px; display: flex; justify-content: space-between;">
+                    <span>${item.time}</span>
+                    <span style="color:var(--accent); font-weight:bold;">${item.name}</span>
+                </div>
+                ${item.text.substring(0, 50)}...
+            </div>
+        `).join('');
+    }
+
+    function loadHistory(i) {
+        document.getElementById('final-prompt').value = history[i].text;
+    }
+
+    function clearHistory() {
+        if(confirm('确定清空所有历史吗？吗？')) {
+            history =;
+            localStorage.removeItem('seedance_p_history');
+            renderHistory();
+        }
+    }
+
+    // 部署到 Vercel 后，你也可以在手机上点击手机电脑壁纸助理来测试响应式布局适配。
+    renderAssistantList();
+    renderHistory();
+    selectAssistant("9"); // 默认选择简约海报
+</script>
+</body>
+</html>
