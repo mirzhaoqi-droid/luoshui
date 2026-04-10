@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seedance 2.0 运镜大师 Pro</title>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --bg: #0b0f1a;
+            --card: #161e31;
+            --text: #e2e8f0;
+            --accent: #22d3ee;
+            --success: #10b981;
+        }
+        body {
+            font-family: 'PingFang SC', system-ui, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 10px;
+            display: flex;
+            justify-content: center;
+        }
+        .container { width: 100%; max-width: 1000px; }
+        header { text-align: center; margin-bottom: 20px; padding: 20px 0; border-bottom: 1px solid #2d3748; }
+        h1 { color: var(--accent); font-size: 1.5rem; margin: 0; }
+        
+        .grid-layout { display: grid; grid-template-columns: 1fr 320px; gap: 15px; }
+        @media (max-width: 768px) { .grid-layout { grid-template-columns: 1fr; } }
+
+        .section { background: var(--card); padding: 15px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #1e293b; }
+        h3 { font-size: 1rem; color: var(--primary); margin-top: 0; display: flex; justify-content: space-between; align-items: center; }
+
+        .tag-group { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; }
+        .tag { background: #1e293b; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; border: 1px solid transparent; transition: 0.2s; }
+        .tag.active { background: var(--primary); color: white; border-color: var(--accent); }
+
+        textarea { width: 100%; height: 180px; background: #020617; color: var(--success); border: 1px solid var(--primary); border-radius: 8px; padding: 12px; font-family: monospace; font-size: 14px; box-sizing: border-box; }
+        
+        .btn { border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 8px; }
+        .btn-primary { background: var(--primary); color: white; }
+        
+        /* 历史记录样式 */
+        .history-list { max-height: 400px; overflow-y: auto; }
+        .history-item { background: #1e293b; padding: 10px; border-radius: 6px; margin-bottom: 8px; font-size: 12px; position: relative; cursor: pointer; border-left: 3px solid var(--primary); }
+        .history-item:hover { background: #2d3748; }
+        .clear-btn { font-size: 12px; color: #94a3b8; cursor: pointer; text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>🎬 Seedance 2.0 运镜大师 Pro</h1>
+    </header>
+
+    <div class="grid-layout">
+        <div class="main-content">
+            <div class="section">
+                <h3>1. 运镜组合 (多选)</h3>
+                <div id="camera-tags" class="tag-group">
+                    <span class="tag" onclick="toggleTag(this, '推镜头')">推镜头</span>
+                    <span class="tag" onclick="toggleTag(this, '拉镜头')">拉镜头</span>
+                    <span class="tag" onclick="toggleTag(this, '横摇')">横摇</span>
+                    <span class="tag" onclick="toggleTag(this, '环绕')">环绕</span>
+                    <span class="tag" onclick="toggleTag(this, '跟拍')">跟拍</span>
+                    <span class="tag" onclick="toggleTag(this, '希区柯克变焦')">希区柯克</span>
+                    <span class="tag" onclick="toggleTag(this, '升格慢动作')">慢动作</span>
+                    <span class="tag" onclick="toggleTag(this, '一镜到底')">一镜到底</span>
+                </div>
+                <h3>2. 景别</h3>
+                <div id="shot-tags" class="tag-group">
+                    <span class="tag" onclick="selectSingle(this, 'shot')">特写</span>
+                    <span class="tag" onclick="selectSingle(this, 'shot')">中景</span>
+                    <span class="tag" onclick="selectSingle(this, 'shot')">全景</span>
+                    <span class="tag" onclick="selectSingle(this, 'shot')">大远景</span>
+                </div>
+                <input type="text" id="subject-input" placeholder="输入主体内容（例如：雨中的赛博朋克街道）" style="width:100%; padding:10px; border-radius:6px; background:#020617; border:1px solid #1e293b; color:white; box-sizing:border-box;">
+            </div>
+
+            <div class="section">
+                <h3>当前生成的提示词</h3>
+                <textarea id="final-prompt"></textarea>
+                <button class="btn btn-primary" onclick="copyAndSave()">复制并保存到历史</button>
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <div class="section">
+                <h3>历史记录 <span class="clear-btn" onclick="clearHistory()">清空</span></h3>
+                <div id="history-list" class="history-list">
+                    </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const state = { camera: [], shot: '', subject: '' };
+    let history = JSON.parse(localStorage.getItem('seedance_history') || '[]');
+
+    function toggleTag(el, val) {
+        el.classList.toggle('active');
+        const index = state.camera.indexOf(val);
+        if (index > -1) state.camera.splice(index, 1);
+        else state.camera.push(val);
+        update();
+    }
+
+    function selectSingle(el, type) {
+        el.parentNode.querySelectorAll('.tag').forEach(t => t.classList.remove('active'));
+        el.classList.add('active');
+        state[type] = el.innerText;
+        update();
+    }
+
+    function update() {
+        const sub = document.getElementById('subject-input').value || "[未命名的场景]";
+        const cam = state.camera.length ? `运镜：${state.camera.join('、')}。` : "";
+        const shot = state.shot ? `景别：${state.shot}。` : "";
+        document.getElementById('final-prompt').value = `${sub}，${shot}${cam}电影级质感，4K超清，画面丝滑，艺术构图。`;
+    }
+
+    document.getElementById('subject-input').addEventListener('input', update);
+
+    function copyAndSave() {
+        const text = document.getElementById('final-prompt').value;
+        if(!text) return;
+        navigator.clipboard.writeText(text);
+        
+        history.unshift({ text, time: new Date().toLocaleString() });
+        if(history.length > 20) history.pop();
+        localStorage.setItem('seedance_history', JSON.stringify(history));
+        renderHistory();
+        alert('已复制并存入历史记录！');
+    }
+
+    function renderHistory() {
+        const list = document.getElementById('history-list');
+        list.innerHTML = history.map((item, i) => `
+            <div class="history-item" onclick="loadHistory(${i})">
+                <div style="color: #94a3b8; margin-bottom: 4px;">${item.time}</div>
+                ${item.text.substring(0, 50)}...
+            </div>
+        `).join('');
+    }
+
+    function loadHistory(i) {
+        document.getElementById('final-prompt').value = history[i].text;
+    }
+
+    function clearHistory() {
+        if(confirm('确定清空所有历史吗？')) {
+            history = [];
+            localStorage.removeItem('seedance_history');
+            renderHistory();
+        }
+    }
+
+    renderHistory();
+</script>
+</body>
+</html>
